@@ -119,7 +119,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
             num_workers = max(0, min(8, cpu_count // 2))
     if pin_memory is None:
         pin_memory = device.type == 'cuda'
-    prefetch_factor = 2 if num_workers > 0 else None
+    prefetch_factor = 16 if num_workers > 0 else None
     logger.info(f"Device: {device.type.upper()} | Workers: {num_workers} | pin_memory: {pin_memory} | prefetch: {prefetch_factor or 0}")
     if device.type == 'cuda':
         device_index = getattr(device, 'index', None)
