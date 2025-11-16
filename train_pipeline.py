@@ -6,6 +6,9 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
+import os
+
+import torch
 
 from loguru import logger
 from bunch import Bunch
@@ -30,7 +33,7 @@ def _load_config(config_path: Path) -> Bunch:
 
 def _build_loaders(dataset_path: Path, batch_size: int, num_workers: int,
                    with_val: bool, val_split: float, include_holdout: bool,
-                   pin_memory: bool
+                   pin_memory: bool, prefetch_factor: int | None
                    ) -> Tuple[DataLoader, DataLoader | None, Dict[str, int]]:
     base_train = vessel_dataset(str(dataset_path), mode="training",
                                 split=val_split if with_val else None)
@@ -57,18 +60,23 @@ def _build_loaders(dataset_path: Path, batch_size: int, num_workers: int,
         'drop_last': True,
         'persistent_workers': num_workers > 0
     }
+    if prefetch_factor and num_workers > 0:
+        loader_kwargs['prefetch_factor'] = prefetch_factor
     train_loader = DataLoader(train_dataset, **loader_kwargs)
     val_loader = None
     if val_dataset is not None:
-        val_loader = DataLoader(
-            val_dataset,
+        val_workers = max(0, num_workers // 2)
+        val_kwargs = dict(
             batch_size=batch_size,
             shuffle=False,
-            num_workers=max(0, num_workers // 2),
-            pin_memory=loader_kwargs['pin_memory'],
+            num_workers=val_workers,
+            pin_memory=pin_memory,
             drop_last=False,
-            persistent_workers=(num_workers // 2) > 0
+            persistent_workers=val_workers > 0
         )
+        if prefetch_factor and val_workers > 0:
+            val_kwargs['prefetch_factor'] = max(2, prefetch_factor // 2)
+        val_loader = DataLoader(val_dataset, **val_kwargs)
     counts = {
         "train_patches": len(train_dataset),
         "base_training_patches": len(base_train),
@@ -92,7 +100,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
                           num_workers: int, with_val: bool, val_split: float,
                           config_path: str, output_root: str, show_preds: bool = False,
                           device_preference: str | None = None,
-                          pin_memory: bool = False
+                          pin_memory: bool | None = None
                           ) -> Dict[str, str | int | float]:
     dataset_root = Path(dataset_path)
     if not dataset_root.exists():
@@ -103,8 +111,24 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
     CFG = _load_config(config_file)
     seed_torch()
     device = get_torch_device(device_preference)
+    cpu_count = os.cpu_count() or 8
+    if num_workers is None or num_workers < 0:
+        if device.type == 'cuda':
+            num_workers = max(8, cpu_count - 2)
+        else:
+            num_workers = max(0, min(8, cpu_count // 2))
+    if pin_memory is None:
+        pin_memory = device.type == 'cuda'
+    prefetch_factor = 4 if num_workers > 0 else None
+    logger.info(f"Device: {device.type.upper()} | Workers: {num_workers} | pin_memory: {pin_memory} | prefetch: {prefetch_factor or 0}")
+    if device.type == 'cuda':
+        device_index = getattr(device, 'index', None)
+        if device_index is None:
+            device_index = torch.cuda.current_device()
+        logger.info(f"CUDA device: {torch.cuda.get_device_name(device_index)}")
     train_loader, val_loader, counts = _build_loaders(
-        dataset_root, batch_size, num_workers, with_val, val_split, include_holdout, pin_memory)
+        dataset_root, batch_size, num_workers, with_val, val_split, include_holdout,
+        pin_memory, prefetch_factor)
     logger.info(f"Training patches: {counts['train_patches']} (base={counts['base_training_patches']}, "
                 f"holdout={counts['holdout_patches']})")
     if counts['val_patches']:

@@ -11,12 +11,14 @@ def parse_args() -> argparse.Namespace:
                         help='Path to the preprocessed ALL dataset (folder containing training_pro/test_pro/etc).')
     parser.add_argument('-c', '--config', default='config.yaml',
                         help='Path to the YAML config file (default: config.yaml).')
-    parser.add_argument('-bs', '--batch-size', type=int, default=512,
-                        help='Batch size for training (default: 512).')
-    parser.add_argument('-nw', '--num-workers', type=int, default=8,
-                        help='Number of DataLoader workers (default: 8). Reduce on low-memory Windows hosts.')
-    parser.add_argument('--pin-memory', action='store_true', default=False,
-                        help='Enable DataLoader pin_memory (recommended when CUDA is available).')
+    parser.add_argument('-bs', '--batch-size', type=int, default=1024,
+                        help='Batch size for training (default: 1024).')
+    parser.add_argument('-nw', '--num-workers', type=int, default=-1,
+                        help='Number of DataLoader workers (default: auto; set explicitly to override).')
+    parser.add_argument('--pin-memory', dest='pin_memory', action='store_true', default=None,
+                        help='Force pin_memory on.')
+    parser.add_argument('--no-pin-memory', dest='pin_memory', action='store_false',
+                        help='Force pin_memory off.')
     parser.add_argument('--val', action='store_true', default=False,
                         help='Split ten percent of training patches for validation (default: disabled).')
     parser.add_argument('--val-split', type=float, default=0.9,
