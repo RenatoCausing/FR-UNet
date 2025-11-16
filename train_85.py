@@ -3,6 +3,7 @@ import json
 
 from train_pipeline import run_training_pipeline
 
+import torch.multiprocessing 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -56,4 +57,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    torch.multiprocessing.set_sharing_strategy('file_system')
     main()
