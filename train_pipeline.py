@@ -114,7 +114,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
     cpu_count = os.cpu_count() or 8
     if num_workers is None or num_workers < 0:
         if device.type == 'cuda':
-            num_workers = max(8, cpu_count - 2)
+            num_workers = min(32, max(8, cpu_count - 2))
         else:
             num_workers = max(0, min(8, cpu_count // 2))
     if pin_memory is None:
