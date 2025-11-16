@@ -7,8 +7,30 @@ import torch
 from torchvision.transforms import functional as F
 
 
-def get_instance(module, name, config, *args):
-    return getattr(module, config[name]['type'])(*args, **config[name]['args'])
+def get_torch_device(preferred: str | torch.device | None = None):
+    """Return a torch.device honoring an explicit preference when possible."""
+    if isinstance(preferred, torch.device):
+        target = preferred.type
+    elif isinstance(preferred, str):
+        target = preferred.lower()
+    else:
+        target = None
+
+    if target == 'cuda':
+        if torch.cuda.is_available():
+            return torch.device('cuda')
+        else:
+            raise RuntimeError('CUDA requested but not available on this host. '
+                               'Run `python - <<"PY"\nimport torch\nprint(torch.cuda.is_available())\nPY` to confirm GPU visibility or install the CUDA-enabled PyTorch build.')
+    if target == 'cpu':
+        return torch.device('cpu')
+
+    # Auto-detect when no explicit preference was passed.
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def get_instance(module, name, config, *args, **kwargs):
+    return getattr(module, config[name]['type'])(*args, **config[name]['args'], **kwargs)
 
 
 def seed_torch(seed=42):
@@ -16,8 +38,9 @@ def seed_torch(seed=42):
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
 
 
 class Fix_RandomRotation(object):

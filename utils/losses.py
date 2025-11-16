@@ -20,8 +20,10 @@ class FocalLoss(nn.Module):
 
 
 class BCELoss(nn.Module):
-    def __init__(self, reduction="mean", pos_weight=1.0):
-        pos_weight = torch.tensor(pos_weight).cuda()
+    def __init__(self, reduction="mean", pos_weight=1.0, device=None):
+        if device is None:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        pos_weight = torch.as_tensor(pos_weight, dtype=torch.float32, device=device)
         super(BCELoss, self).__init__()
         self.bce_loss = nn.BCEWithLogitsLoss(
             reduction=reduction, pos_weight=pos_weight)
@@ -31,9 +33,11 @@ class BCELoss(nn.Module):
 
 
 class CELoss(nn.Module):
-    def __init__(self, weight=[1, 1], ignore_index=-100, reduction='mean'):
+    def __init__(self, weight=[1, 1], ignore_index=-100, reduction='mean', device=None):
         super(CELoss, self).__init__()
-        weight = torch.tensor(weight).cuda()
+        if device is None:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        weight = torch.as_tensor(weight, dtype=torch.float32, device=device)
         self.CE = nn.CrossEntropyLoss(
             weight=weight, ignore_index=ignore_index, reduction=reduction)
 
@@ -56,10 +60,10 @@ class DiceLoss(nn.Module):
 
 
 class CE_DiceLoss(nn.Module):
-    def __init__(self, reduction="mean", D_weight=0.5):
+    def __init__(self, reduction="mean", D_weight=0.5, device=None):
         super(CE_DiceLoss, self).__init__()
         self.DiceLoss = DiceLoss()
-        self.BCELoss = BCELoss(reduction=reduction)
+        self.BCELoss = BCELoss(reduction=reduction, device=device)
         self.D_weight = D_weight
 
     def forward(self, prediction, targets):

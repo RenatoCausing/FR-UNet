@@ -8,7 +8,8 @@ from utils.helpers import Fix_RandomRotation
 
 class vessel_dataset(Dataset):
     def __init__(self, path, mode, is_val=False, split=None):
-
+        if mode not in {"training", "test", "holdout"}:
+            raise ValueError(f"Unsupported mode '{mode}'. Expected training, test, or holdout.")
         self.mode = mode
         self.is_val = is_val
         self.data_path = os.path.join(path, f"{mode}_pro")
@@ -20,6 +21,7 @@ class vessel_dataset(Dataset):
                 self.img_file = self.img_file[:int(split*len(self.img_file))]
             else:
                 self.img_file = self.img_file[int(split*len(self.img_file)):]
+        self._augment = (self.mode in {"training", "holdout"}) and not self.is_val
         self.transforms = Compose([
             RandomHorizontalFlip(p=0.5),
             RandomVerticalFlip(p=0.5),
@@ -34,8 +36,9 @@ class vessel_dataset(Dataset):
         with open(file=os.path.join(self.data_path, gt_file), mode='rb') as file:
             gt = torch.from_numpy(pickle.load(file)).float()
 
-        if self.mode == "training" and not self.is_val:
+        if self._augment:
             seed = torch.seed()
+            # Reseed before each transform call so image/label undergo identical augmentations
             torch.manual_seed(seed)
             img = self.transforms(img)
             torch.manual_seed(seed)

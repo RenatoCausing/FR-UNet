@@ -1,17 +1,18 @@
 import argparse
 from bunch import Bunch
 from loguru import logger
-from ruamel.yaml import safe_load
+from ruamel.yaml import YAML
 from torch.utils.data import DataLoader
 import models
 from dataset import vessel_dataset
 from trainer import Trainer
 from utils import losses
-from utils.helpers import get_instance, seed_torch
+from utils.helpers import get_instance, seed_torch, get_torch_device
 
 
 def main(CFG, data_path, batch_size, with_val=False):
     seed_torch()
+    device = get_torch_device()
     if with_val:
         train_dataset = vessel_dataset(data_path, mode="training", split=0.9)
         val_dataset = vessel_dataset(
@@ -26,13 +27,14 @@ def main(CFG, data_path, batch_size, with_val=False):
     logger.info('The patch number of train is %d' % len(train_dataset))
     model = get_instance(models, 'model', CFG)
     logger.info(f'\n{model}\n')
-    loss = get_instance(losses, 'loss', CFG)
+    loss = get_instance(losses, 'loss', CFG, device=device)
     trainer = Trainer(
         model=model,
         loss=loss,
         CFG=CFG,
         train_loader=train_loader,
-        val_loader=val_loader if with_val else None
+        val_loader=val_loader if with_val else None,
+        device=device
     )
 
     trainer.train()
@@ -48,6 +50,8 @@ if __name__ == '__main__':
                         required=False, default=False, action="store_true")
     args = parser.parse_args()
 
+    yaml = YAML(typ='safe')
+    yaml.pure = True
     with open('config.yaml', encoding='utf-8') as file:
-        CFG = Bunch(safe_load(file))
+        CFG = Bunch(yaml.load(file))
     main(CFG, args.dataset_path, args.batch_size, args.val)

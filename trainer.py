@@ -10,18 +10,23 @@ import torchvision.transforms.functional as TF
 from loguru import logger
 from torch.utils import tensorboard
 from tqdm import tqdm
-from utils.helpers import dir_exists, get_instance, remove_files, double_threshold_iteration
+from utils.helpers import dir_exists, get_instance, remove_files, double_threshold_iteration, get_torch_device
 from utils.metrics import AverageMeter, get_metrics, get_metrics, count_connect_component
 import ttach as tta
 
 
 class Trainer:
-    def __init__(self, model, CFG=None, loss=None, train_loader=None, val_loader=None):
+    def __init__(self, model, CFG=None, loss=None, train_loader=None, val_loader=None, device=None):
         self.CFG = CFG
-        if self.CFG.amp is True:
-            self.scaler = torch.cuda.amp.GradScaler(enabled=True)
-        self.loss = loss
-        self.model = nn.DataParallel(model.cuda())
+        self.device = device or get_torch_device()
+        self.amp_enabled = bool(self.CFG.amp and self.device.type == 'cuda')
+        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if self.amp_enabled else None
+        self.loss = loss.to(self.device) if loss is not None else None
+        model = model.to(self.device)
+        if self.device.type == 'cuda' and torch.cuda.device_count() > 1:
+            self.model = nn.DataParallel(model)
+        else:
+            self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = get_instance(
@@ -34,6 +39,7 @@ class Trainer:
         self.writer = tensorboard.SummaryWriter(self.checkpoint_dir)
         dir_exists(self.checkpoint_dir)
         cudnn.benchmark = True
+        self.latest_checkpoint = None
 
     def train(self):
         for epoch in range(1, self.CFG.epochs + 1):
@@ -52,12 +58,13 @@ class Trainer:
         self._reset_metrics()
         tbar = tqdm(self.train_loader, ncols=160)
         tic = time.time()
+        non_blocking = self.device.type == 'cuda'
         for img, gt in tbar:
             self.data_time.update(time.time() - tic)
-            img = img.cuda(non_blocking=True)
-            gt = gt.cuda(non_blocking=True)
+            img = img.to(self.device, non_blocking=non_blocking)
+            gt = gt.to(self.device, non_blocking=non_blocking)
             self.optimizer.zero_grad()
-            if self.CFG.amp is True:
+            if self.amp_enabled:
                 with torch.cuda.amp.autocast(enabled=True):
                     pre = self.model(img)
                     loss = self.loss(pre, gt)
@@ -94,10 +101,11 @@ class Trainer:
         self._reset_metrics()
         tbar = tqdm(self.val_loader, ncols=160)
         with torch.no_grad():
+            non_blocking = self.device.type == 'cuda'
             for img, gt in tbar:
-                img = img.cuda(non_blocking=True)
-                gt = gt.cuda(non_blocking=True)
-                if self.CFG.amp is True:
+                img = img.to(self.device, non_blocking=non_blocking)
+                gt = gt.to(self.device, non_blocking=non_blocking)
+                if self.amp_enabled:
                     with torch.cuda.amp.autocast(enabled=True):
                         predict = self.model(img)
                         loss = self.loss(predict, gt)
@@ -135,6 +143,7 @@ class Trainer:
                                 f'checkpoint-epoch{epoch}.pth')
         logger.info(f'Saving a checkpoint: {filename} ...')
         torch.save(state, filename)
+        self.latest_checkpoint = filename
         return filename
 
     def _reset_metrics(self):
