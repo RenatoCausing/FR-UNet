@@ -32,7 +32,12 @@ class vessel_dataset(Dataset):
         self._cached_samples = None
         self._share_memory_failed = False
         if self.cache_in_memory:
-            self._cached_samples = self._preload_samples()
+            try:
+                self._cached_samples = self._preload_samples()
+            except MemoryError as exc:
+                logger.error("RAM cache: ran out of host memory while preloading patches ({}). Disabling cache and streaming from disk.", exc)
+                self._cached_samples = None
+                self.cache_in_memory = False
 
     def __getitem__(self, idx):
         if self.cache_in_memory and self._cached_samples is not None:
@@ -69,17 +74,21 @@ class vessel_dataset(Dataset):
 
     def _preload_samples(self):
         samples = []
-        for img_file in self.img_file:
-            img = self._load_tensor(img_file)
-            gt = self._load_tensor("gt" + img_file[3:])
-            if not self._share_memory_failed:
-                try:
-                    img.share_memory_()
-                    gt.share_memory_()
-                except RuntimeError as exc:
-                    self._share_memory_failed = True
-                    logger.warning("RAM cache: unable to share tensors via shared memory ({}). Continuing without shared pages.", exc)
-            samples.append((img, gt))
+        try:
+            for img_file in self.img_file:
+                img = self._load_tensor(img_file)
+                gt = self._load_tensor("gt" + img_file[3:])
+                if not self._share_memory_failed:
+                    try:
+                        img.share_memory_()
+                        gt.share_memory_()
+                    except RuntimeError as exc:
+                        self._share_memory_failed = True
+                        logger.warning("RAM cache: unable to share tensors via shared memory ({}). Continuing without shared pages.", exc)
+                samples.append((img, gt))
+        except MemoryError:
+            samples.clear()
+            raise
         return samples
 
     def _load_tensor(self, file_name):
