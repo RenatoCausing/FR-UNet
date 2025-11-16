@@ -65,7 +65,7 @@ class Trainer:
             gt = gt.to(self.device, non_blocking=non_blocking)
             self.optimizer.zero_grad()
             if self.amp_enabled:
-                with torch.cuda.amp.autocast(enabled=True):
+                with torch.amp.autocast("cuda", enabled=True):
                     pre = self.model(img)
                     loss = self.loss(pre, gt)
                 self.scaler.scale(loss).backward()
@@ -106,7 +106,7 @@ class Trainer:
                 img = img.to(self.device, non_blocking=non_blocking)
                 gt = gt.to(self.device, non_blocking=non_blocking)
                 if self.amp_enabled:
-                    with torch.cuda.amp.autocast(enabled=True):
+                    with torch.amp.autocast("cuda", enabled=True):
                         predict = self.model(img)
                         loss = self.loss(predict, gt)
                 else:
