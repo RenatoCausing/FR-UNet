@@ -33,12 +33,15 @@ def _load_config(config_path: Path) -> Bunch:
 
 def _build_loaders(dataset_path: Path, batch_size: int, num_workers: int,
                    with_val: bool, val_split: float, include_holdout: bool,
-                   pin_memory: bool, prefetch_factor: int | None
+                   pin_memory: bool, prefetch_factor: int | None,
+                   cache_dataset: bool
                    ) -> Tuple[DataLoader, DataLoader | None, Dict[str, int]]:
     base_train = vessel_dataset(str(dataset_path), mode="training",
-                                split=val_split if with_val else None)
+                                split=val_split if with_val else None,
+                                cache_in_memory=cache_dataset)
     val_dataset = vessel_dataset(str(dataset_path), mode="training",
-                                 split=val_split, is_val=True) if with_val else None
+                                 split=val_split, is_val=True,
+                                 cache_in_memory=cache_dataset) if with_val else None
     holdout_patches = 0
     if include_holdout:
         holdout_dir = dataset_path / "holdout_pro"
@@ -47,7 +50,8 @@ def _build_loaders(dataset_path: Path, batch_size: int, num_workers: int,
                 f"holdout_pro directory not found at {holdout_dir}. Run data_process.py with --modes holdout first.")
         if not any(holdout_dir.iterdir()):
             raise RuntimeError(f"holdout_pro at {holdout_dir} is empty – run the holdout preprocessing step.")
-        holdout_dataset = vessel_dataset(str(dataset_path), mode="holdout")
+        holdout_dataset = vessel_dataset(str(dataset_path), mode="holdout",
+                         cache_in_memory=cache_dataset)
         train_dataset = ConcatDataset([base_train, holdout_dataset])
         holdout_patches = len(holdout_dataset)
     else:
@@ -100,7 +104,8 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
                           num_workers: int, with_val: bool, val_split: float,
                           config_path: str, output_root: str, show_preds: bool = False,
                           device_preference: str | None = None,
-                          pin_memory: bool | None = None
+                          pin_memory: bool | None = None,
+                          cache_dataset: bool = False
                           ) -> Dict[str, str | int | float]:
     dataset_root = Path(dataset_path)
     if not dataset_root.exists():
@@ -120,7 +125,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
     if pin_memory is None:
         pin_memory = device.type == 'cuda'
     prefetch_factor = 32 if num_workers > 0 else None
-    logger.info(f"Device: {device.type.upper()} | Workers: {num_workers} | pin_memory: {pin_memory} | prefetch: {prefetch_factor or 0}")
+    logger.info(f"Device: {device.type.upper()} | Workers: {num_workers} | pin_memory: {pin_memory} | prefetch: {prefetch_factor or 0} | cache_dataset: {cache_dataset}")
     if device.type == 'cuda':
         device_index = getattr(device, 'index', None)
         if device_index is None:
@@ -128,7 +133,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
         logger.info(f"CUDA device: {torch.cuda.get_device_name(device_index)}")
     train_loader, val_loader, counts = _build_loaders(
         dataset_root, batch_size, num_workers, with_val, val_split, include_holdout,
-        pin_memory, prefetch_factor)
+        pin_memory, prefetch_factor, cache_dataset)
     logger.info(f"Training patches: {counts['train_patches']} (base={counts['base_training_patches']}, "
                 f"holdout={counts['holdout_patches']})")
     if counts['val_patches']:

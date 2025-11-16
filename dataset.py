@@ -7,11 +7,12 @@ from utils.helpers import Fix_RandomRotation
 
 
 class vessel_dataset(Dataset):
-    def __init__(self, path, mode, is_val=False, split=None):
+    def __init__(self, path, mode, is_val=False, split=None, cache_in_memory=False):
         if mode not in {"training", "test", "holdout"}:
             raise ValueError(f"Unsupported mode '{mode}'. Expected training, test, or holdout.")
         self.mode = mode
         self.is_val = is_val
+        self.cache_in_memory = cache_in_memory
         self.data_path = os.path.join(path, f"{mode}_pro")
         self.data_file = os.listdir(self.data_path)
         self.img_file = self._select_img(self.data_file)
@@ -27,14 +28,21 @@ class vessel_dataset(Dataset):
             RandomVerticalFlip(p=0.5),
             Fix_RandomRotation(),
         ])
+        self._cached_samples = None
+        if self.cache_in_memory:
+            self._cached_samples = self._preload_samples()
 
     def __getitem__(self, idx):
-        img_file = self.img_file[idx]
-        with open(file=os.path.join(self.data_path, img_file), mode='rb') as file:
-            img = torch.from_numpy(pickle.load(file)).float()
-        gt_file = "gt" + img_file[3:]
-        with open(file=os.path.join(self.data_path, gt_file), mode='rb') as file:
-            gt = torch.from_numpy(pickle.load(file)).float()
+        if self.cache_in_memory and self._cached_samples is not None:
+            img, gt = self._cached_samples[idx]
+            # clone to keep cached tensors pristine when augmentations run
+            img = img.clone()
+            gt = gt.clone()
+        else:
+            img_file = self.img_file[idx]
+            img = self._load_tensor(img_file)
+            gt_file = "gt" + img_file[3:]
+            gt = self._load_tensor(gt_file)
 
         if self._augment:
             seed = torch.seed()
@@ -56,3 +64,18 @@ class vessel_dataset(Dataset):
 
     def __len__(self):
         return len(self.img_file)
+
+    def _preload_samples(self):
+        samples = []
+        for img_file in self.img_file:
+            img = self._load_tensor(img_file)
+            gt = self._load_tensor("gt" + img_file[3:])
+            img.share_memory_()
+            gt.share_memory_()
+            samples.append((img, gt))
+        return samples
+
+    def _load_tensor(self, file_name):
+        with open(file=os.path.join(self.data_path, file_name), mode='rb') as file:
+            tensor = torch.from_numpy(pickle.load(file)).float()
+        return tensor
