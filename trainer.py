@@ -20,7 +20,7 @@ class Trainer:
         self.CFG = CFG
         self.device = device or get_torch_device()
         self.amp_enabled = bool(self.CFG.amp and self.device.type == 'cuda')
-        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if self.amp_enabled else None
+        self.scaler = torch.amp.GradScaler("cuda") if self.amp_enabled else None
         self.loss = loss.to(self.device) if loss is not None else None
         model = model.to(self.device)
         if self.device.type == 'cuda' and torch.cuda.device_count() > 1:

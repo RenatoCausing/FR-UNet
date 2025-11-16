@@ -19,10 +19,6 @@ def parse_args() -> argparse.Namespace:
                         help='Force pin_memory on.')
     parser.add_argument('--no-pin-memory', dest='pin_memory', action='store_false',
                         help='Force pin_memory off.')
-    parser.add_argument('--cache-ram', dest='cache_ram', action='store_true', default=True,
-                        help='Preload all patches into RAM before training (default: enabled).')
-    parser.add_argument('--no-cache-ram', dest='cache_ram', action='store_false',
-                        help='Disable RAM caching if memory is constrained.')
     parser.add_argument('--val', action='store_true', default=False,
                         help='Split ten percent of the base training patches for validation (default: disabled).')
     parser.add_argument('--val-split', type=float, default=0.9,
@@ -49,8 +45,7 @@ def main() -> None:
         output_root=args.output_root,
         show_preds=args.show_test,
         device_preference=None if args.device == 'auto' else args.device,
-        pin_memory=args.pin_memory,
-        cache_dataset=args.cache_ram
+        pin_memory=args.pin_memory
     )
     print(json.dumps(summary, indent=2))
 
