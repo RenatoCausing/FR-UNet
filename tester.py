@@ -43,6 +43,16 @@ class Tester(Trainer):
         tbar = tqdm(self.test_loader, ncols=150)
         tic = time.time()
         non_blocking = self.device.type == 'cuda'
+        
+        # Generate random indices for saving if show is enabled and dataset exceeds max_save
+        save_indices = set()
+        if self.show:
+            dataset_size = len(self.test_loader.dataset)
+            if dataset_size > self.max_save:
+                save_indices = set(np.random.choice(dataset_size, self.max_save, replace=False))
+            else:
+                save_indices = set(range(dataset_size))
+        
         with torch.no_grad():
             for i, (img, gt) in enumerate(tbar):
                 self.data_time.update(time.time() - tic)
@@ -56,7 +66,7 @@ class Tester(Trainer):
                 img = img[0, 0, ...]
                 gt = gt[0, 0, ...]
                 pre = pre[0, 0, ...]
-                if self.show and i < self.max_save:
+                if self.show and i in save_indices:
                     predict = torch.sigmoid(pre).cpu().detach().numpy()
                     predict_b = np.where(predict >= self.CFG.threshold, 1, 0)
                     cv2.imwrite(
