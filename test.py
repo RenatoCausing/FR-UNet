@@ -13,11 +13,11 @@ from utils.helpers import get_instance, get_torch_device
 from utils.metrics import save_confusion_matrix
 
 
-def main(data_path, weight_path, CFG, show=False, device=None):
+def main(data_path, weight_path, CFG, show=False, device=None, test_mode='test'):
     device = get_torch_device(device)
     checkpoint = torch.load(weight_path, map_location=device)
     CFG_ck = checkpoint['config']
-    test_dataset = vessel_dataset(data_path, mode="test")
+    test_dataset = vessel_dataset(data_path, mode=test_mode)
     test_loader = DataLoader(test_dataset, 1,
                              shuffle=False,  num_workers=16, pin_memory=True)
     model = get_instance(models, 'model', CFG)

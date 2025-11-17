@@ -156,7 +156,7 @@ def run_training_pipeline(*, include_holdout: bool, dataset_path: str, batch_siz
     shutil.copytree(trainer.checkpoint_dir, checkpoints_dir)
     logger.info(f"Copied latest checkpoint to {checkpoint_copy}")
     logger.info(f"Mirrored full checkpoint directory to {checkpoints_dir}")
-    test_results = run_test(str(dataset_root), str(checkpoint_copy), CFG, show_preds, device=device)
+    test_results = run_test(str(dataset_root), str(checkpoint_copy), CFG, show_preds, device=device, test_mode='holdout')
     metrics_path = run_dir / 'test_metrics.json'
     with metrics_path.open('w', encoding='utf-8') as fp:
         json.dump(test_results, fp, indent=2)

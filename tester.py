@@ -14,7 +14,7 @@ import ttach as tta
 
 
 class Tester(Trainer):
-    def __init__(self, model, loss, CFG, checkpoint, test_loader, dataset_path, show=False, device=None):
+    def __init__(self, model, loss, CFG, checkpoint, test_loader, dataset_path, show=False, device=None, max_save=100):
         self.device = device or get_torch_device()
         self.loss = loss.to(self.device)
         self.CFG = CFG
@@ -26,6 +26,7 @@ class Tester(Trainer):
             self.model = model
         self.dataset_path = dataset_path
         self.show = show
+        self.max_save = max_save
         self.model.load_state_dict(checkpoint['state_dict'])
         if self.show:
             dir_exists("save_picture")
@@ -55,7 +56,7 @@ class Tester(Trainer):
                 img = img[0, 0, ...]
                 gt = gt[0, 0, ...]
                 pre = pre[0, 0, ...]
-                if self.show:
+                if self.show and i < self.max_save:
                     predict = torch.sigmoid(pre).cpu().detach().numpy()
                     predict_b = np.where(predict >= self.CFG.threshold, 1, 0)
                     cv2.imwrite(
