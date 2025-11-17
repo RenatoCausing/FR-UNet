@@ -44,7 +44,7 @@ def _preprocess_retinal_image(image):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     image = clahe.apply(image)
-    image = cv2.GaussianBlur(image, (3, 3), 0)
+#   image = cv2.GaussianBlur(image, (3, 3), 0)
     return image
 
 
