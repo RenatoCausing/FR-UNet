@@ -107,9 +107,9 @@ def _stack_preview(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return np.concatenate([left_resized, spacer, right_resized], axis=1)
 
 
-def _save_preview(sample_id: str, seg_map: np.ndarray, shade_img: np.ndarray, preview_dir: Path) -> None:
+def _save_preview(sample_id: str, clahe_img: np.ndarray, shade_img: np.ndarray, preview_dir: Path) -> None:
     preview_dir.mkdir(parents=True, exist_ok=True)
-    stacked = _stack_preview(seg_map, shade_img)
+    stacked = _stack_preview(clahe_img, shade_img)
     cv2.imwrite(str(preview_dir / f"{sample_id}_preview.png"), stacked)
 
 
@@ -175,17 +175,17 @@ def _load_final_samples(dataset_path: Path, clip_limit: float = 2.0,
         mask_path = mask_lookup.get(stem)
         if mask_path is not None:
             mask_img = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-        processed, _ = _preprocess_image(
+        processed, clahe_only = _preprocess_image(
             image, mask_img, clip_limit, tile_grid_size, shade_kernel, shade_correction
         )
         if processed is None:
             continue
+        if preview_dir is not None and clahe_only is not None:
+            _save_preview(stem, clahe_only, processed, preview_dir)
         gt = cv2.imread(str(seg_path), cv2.IMREAD_GRAYSCALE)
         if gt is None:
             continue
         gt = np.where(gt > 0, 255, 0).astype(np.uint8)
-        if preview_dir is not None:
-            _save_preview(stem, gt, processed, preview_dir)
         dataset_name = _dataset_prefix(stem)
         samples.append({
             "id": stem,
@@ -346,7 +346,7 @@ def _save_test_dataset(samples: List[dict], path: Path) -> None:
 
 
 def data_process_final(dataset_path: Path, patch_size: int, train_ratio: float,
-                       modes: List[str], clip_limit: float = 2.0,
+                       modes: List[str], clip_limit: float = 0.03,
                        tile_grid_size: tuple = (8, 8), shade_correction: bool = False,
                        shade_kernel: int = 25, dry_run: bool = False,
                        preview_dir: Path | None = None) -> None:
@@ -424,7 +424,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("-dp", "--dataset-path", type=Path, default=FINAL_DATASET_DEFAULT,
                         help="Path to the Final Dataset root (default: D:/FR-UNet/FR-UNet/Final Dataset).")
-    parser.add_argument("-ps", "--patch-size", type=int, default=96,
+    parser.add_argument("-ps", "--patch-size", type=int, default=48,
                         help="Patch size for extraction (default: 48).")
     parser.add_argument("-tr", "--train-ratio", type=float, default=1.0,
                         help="Fraction of remaining (non-test) samples kept for training (default: 1.0).")

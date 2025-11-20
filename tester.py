@@ -69,14 +69,18 @@ class Tester(Trainer):
                 if self.show and i in save_indices:
                     predict = torch.sigmoid(pre).cpu().detach().numpy()
                     predict_b = np.where(predict >= self.CFG.threshold, 1, 0)
-                    cv2.imwrite(
-                        f"save_picture/img{i}.png", np.uint8(img.cpu().numpy()*255))
-                    cv2.imwrite(
-                        f"save_picture/gt{i}.png", np.uint8(gt.cpu().numpy()*255))
-                    cv2.imwrite(
-                        f"save_picture/pre{i}.png", np.uint8(predict*255))
-                    cv2.imwrite(
-                        f"save_picture/pre_b{i}.png", np.uint8(predict_b*255))
+                    img_np = np.uint8(img.cpu().numpy()*255)
+                    gt_np = np.uint8(gt.cpu().numpy()*255)
+                    cv2.imwrite(f"save_picture/img{i}.png", img_np)
+                    cv2.imwrite(f"save_picture/gt{i}.png", gt_np)
+                    cv2.imwrite(f"save_picture/pre{i}.png", np.uint8(predict*255))
+                    cv2.imwrite(f"save_picture/pre_b{i}.png", np.uint8(predict_b*255))
+
+                    # quick visual check: concatenate GT (left) and binary prediction (right)
+                    comparison = np.concatenate(
+                        [gt_np, np.uint8(predict_b*255)], axis=1
+                    )
+                    cv2.imwrite(f"save_picture/compare_gt_pred{i}.png", comparison)
 
                 if self.CFG.DTI:
                     if self.CFG.fast_DTI:

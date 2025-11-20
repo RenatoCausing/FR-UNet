@@ -19,7 +19,7 @@ def main(data_path, weight_path, CFG, show=False, device=None, test_mode='test')
     CFG_ck = checkpoint['config']
     test_dataset = vessel_dataset(data_path, mode=test_mode)
     test_loader = DataLoader(test_dataset, 1,
-                             shuffle=False,  num_workers=16, pin_memory=True)
+                             shuffle=False,  num_workers=0, pin_memory=True)
     model = get_instance(models, 'model', CFG)
     loss = get_instance(losses, 'loss', CFG_ck, device=device)
     test = Tester(model, loss, CFG, checkpoint, test_loader, data_path, show, device=device)
